@@ -150,29 +150,13 @@ async function fetchPages(token, search, pages) {
   return { articles, error };
 }
 
-export default async (req) => {
+export default async () => {
   const token = process.env.THENEWSAPI_TOKEN;
   if (!token) return json({ items: [], error: 'THENEWSAPI_TOKEN not set' });
-
-  let debug = false;
-  try { debug = new URL(req.url).searchParams.get('debug') === '1'; } catch {}
 
   try {
     const primary = await fetchPages(token, SEARCH, PAGES);
     const items = shapeArticles(primary.articles);
-
-    // TEMP: ?debug=1 shows each candidate's keep/drop reason. Remove after tuning.
-    if (debug) {
-      return json({
-        configuredQuery: SEARCH,
-        error: primary.error,
-        candidates: primary.articles.map((a) => ({
-          title: a.title, source: a.source, url: a.url, ...classify(a),
-        })),
-        filteredCount: items.length,
-        items,
-      }, { maxAge: 0 });
-    }
 
     return json(
       { items, source: 'thenewsapi', fetchedAt: new Date().toISOString(), error: primary.error || undefined },
