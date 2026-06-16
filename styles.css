@@ -206,21 +206,13 @@ body {
   color: #6a6a71;
 }
 
-/* ---------- main footer note ---------- */
-.main-footer {
-  padding-top: clamp(8px, 1.5vw, 16px);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
+/* ---------- footer notes ---------- */
 .fable-note {
-  margin: 0;
+  margin: 0 0 10px;
   font-size: 13px;
   line-height: 1.5;
-  color: #2c2c31;
+  color: #45454c;
   font-weight: 500;
-  font-style: italic;
 }
 
 /* ---------- page footer ---------- */
@@ -242,7 +234,11 @@ body {
 .rail {
   display: flex;
   flex-direction: column;
+  /* drop the rail down so COVERAGE lines up near the headline baseline
+     instead of floating at the very top next to it */
+  margin-top: clamp(28px, 4.5vw, 64px);
 }
+@media (max-width: 800px) { .rail { margin-top: 0; } }
 
 .rail__head {
   display: flex;
@@ -313,13 +309,6 @@ body {
   text-wrap: pretty;
 }
 
-.rail__note {
-  margin: 18px 0 0;
-  font-size: 11px;
-  line-height: 1.5;
-  color: #6a6a71;
-}
-
 /* ---------- status flip: show one verdict / one pill ---------- */
 .v-up,
 .pill--up { display: none; }
@@ -362,7 +351,6 @@ body {
   .clock__quip { margin-top: 12px; padding-top: 12px; }
 
   .item { padding: 10px 0; }
-  .rail__note { margin-top: 10px; }
 
   .page-footer {
     margin-top: clamp(20px, 2.5vh, 32px);
