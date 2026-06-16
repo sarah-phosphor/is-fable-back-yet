@@ -27,13 +27,18 @@ Why TheNewsAPI: its **free tier is real-time** (no delay), unlike GNews free (12
 
 Quality control lives in the function, not the API:
 
-- **Hard allowlist** — only reputable outlets (Reuters, Bloomberg, The Verge, Ars Technica,
-  Al Jazeera, BBC, Business Insider, Tom's Hardware, The Conversation, Anthropic, …) ever appear.
-- **Relevance gate** — the piece must actually mention Fable / Mythos / Anthropic.
+- **Hard allowlist** — only reputable outlets (Reuters, Bloomberg, The Verge, CNBC, The Guardian,
+  Vox, Wired, NBC News, Al Jazeera, BBC, Anthropic, …) ever appear.
+- **Relevance gate** — judged on the headline **and the URL slug**, because a newsroom's slug tags
+  the topic even when the headline doesn't (Vox's "Trump just found the worst way to regulate AI"
+  lives at `/anthropic-fable-claude-ban-…`). Keep only if it names Fable/Mythos, or names Anthropic
+  plus an outage/fight word (offline, ban, restore, white house…).
 - **Dedup** — by URL and headline, killing rewrite-spam copies.
 
-The curated list in [`app.js`](app.js) (`CURATED`) is the **fallback**: it renders instantly on
-load and stays whenever the feed is empty or unreachable, so the rail is never blank.
+The curated list in [`app.js`](app.js) (`CURATED`) is a set of **hand-picked anchors** — vetted
+articles that always show (some are relevant by context, not keywords, so no filter could be trusted
+to find them). The live feed merges fresh, filter-passing articles on top, newest first. The rail is
+never blank.
 
 The token stays server-side (never shipped to the browser), and the response is edge-cached for
 60 minutes, so TheNewsAPI is hit ~48×/day — well under the free 100/day cap.

@@ -13,44 +13,53 @@ const LAUNCH      = new Date('2026-06-09T00:00:00-04:00').getTime();
 const DOWN_SINCE  = new Date('2026-06-12T17:21:00-04:00').getTime();
 const LIFESPAN_MS = DOWN_SINCE - LAUNCH;   // ~3 days online
 
-// ---- Coverage: live with a curated safety net --------------
-// The rail auto-updates from /api/news (a serverless function that
-// queries GNews). CURATED renders instantly on load and is shown
-// whenever the live feed is empty or unreachable, so the rail is
-// never blank. Dates here are anchored to noon ET.
+// ---- Coverage: live feed + hand-picked anchors -------------
+// CURATED are vetted, always-shown anchors (some are relevant via
+// context, not keywords, so no auto-filter could be trusted to find
+// them). The live feed (/api/news) merges fresh, filter-passing
+// articles on top, newest first. The rail is never empty.
 const CURATED = [
-  { outlet: 'The Conversation', headline: "Why the US government shut down Anthropic's latest Claude AI model", url: 'https://theconversation.com/why-the-us-government-shut-down-anthropics-latest-claude-ai-model-285223', date: '2026-06-14' },
-  { outlet: 'Al Jazeera',       headline: 'US orders Anthropic to disable AI models for all foreign nationals', url: 'https://www.aljazeera.com/news/2026/6/13/us-orders-anthropic-to-disable-ai-models-for-all-foreign-nationals', date: '2026-06-13' },
-  { outlet: "Tom's Hardware",   headline: 'US export-control order forces Anthropic to disable Claude Fable 5 and Mythos 5 worldwide', url: 'https://www.tomshardware.com/tech-industry/artificial-intelligence/us-export-control-order-forces-anthropic-to-disable-claude-fable-5-and-mythos-5-worldwide', date: '2026-06-13' },
-  { outlet: 'MarkTechPost',     headline: 'Anthropic disables Claude Fable 5 and Mythos 5 after US government order', url: 'https://www.marktechpost.com/2026/06/13/anthropic-disables-claude-fable-5-and-mythos-5-after-us-government-order/', date: '2026-06-13' },
-  { outlet: 'Business Insider', headline: 'Anthropic disables Mythos and Fable models under US export-control order', url: 'https://www.businessinsider.com/anthropic-disable-mythos-fable-us-export-control-national-security-2026-6', date: '2026-06-13' },
-  { outlet: 'Anthropic',        headline: 'Official statement on Fable 5 and Mythos 5 access', url: 'https://www.anthropic.com/news/fable-mythos-access', date: '2026-06-12' },
+  { outlet: 'CNBC', headline: 'Prediction market traders speculate Anthropic will restore access quickly to AI model after Trump admin directed it to limit reach', url: 'https://www.cnbc.com/2026/06/16/kalshi-traders-think-anthropic-will-restore-access-to-ai-model-quickly.html', iso: '2026-06-16T15:44:01Z' },
+  { outlet: 'The Guardian', headline: "The Anthropic 'Fable' saga proves: we have opened the AI Pandora's box. What now?", url: 'https://www.theguardian.com/commentisfree/2026/jun/16/anthropic-fable-ai', iso: '2026-06-16T12:00:01Z' },
+  { outlet: 'Vox', headline: 'Trump just found the worst way to regulate AI', url: 'https://www.vox.com/politics/492031/anthropic-fable-claude-ban-trump-ai', iso: '2026-06-16T10:00:00Z' },
+  { outlet: 'NBC News', headline: "Inside the Trump Administration scramble that forced Anthropic's new AI model offline", url: 'https://www.nbcnews.com/tech/security/anthropic-fable-5-ai-offline-trump-order-administration-claude-rcna350117', iso: '2026-06-16T09:00:42Z' },
+  { outlet: 'Wired', headline: 'Anthropic Is Still at Odds With the White House Over Claude Fable 5', url: 'https://www.wired.com/story/anthropic-is-still-at-odds-with-the-white-house-over-claude-fable-5/', iso: '2026-06-16T00:53:46Z' },
+  { outlet: 'The Verge', headline: "All the news about Anthropic's new AI fight with the White House", url: 'https://www.theverge.com/ai-artificial-intelligence/950026/anthropic-fable-mythos-ban-ai-shutdown', iso: '2026-06-15T19:04:53Z' },
 ];
 
 const NEWS_ENDPOINT = '/api/news';
 const POLL_MS = 10 * 60 * 1000;   // re-check the feed every 10 minutes
+const MAX_RAIL = 7;
+
+// curated anchors, normalized to { outlet, headline, url, ts }
+const ANCHORS = CURATED.map((c) => ({ outlet: c.outlet, headline: c.headline, url: c.url, ts: Date.parse(c.iso) }));
+let liveItems = [];
 
 // ---- helpers -----------------------------------------------
 const pad = (n) => String(n).padStart(2, '0');
 
-// Resolve an item to a timestamp: live items carry an ISO datetime in
-// `ts`; curated items carry a YYYY-MM-DD `date` anchored to noon ET.
-function itemTime(item) {
-  if (typeof item.ts === 'number') return item.ts;
-  return new Date(item.date + 'T12:00:00-04:00').getTime();
-}
-
 function relFromTime(t, now) {
-  const d = Math.round((now - t) / 86400000);
+  // calendar-day difference (local), so a same-day article reads "today"
+  // all day instead of flipping to "yesterday" after ~12 hours.
+  const a = new Date(t), b = new Date(now);
+  const midnight = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const d = Math.round((midnight(b) - midnight(a)) / 86400000);
   if (d <= 0) return 'today';
   if (d === 1) return 'yesterday';
   return d + ' days ago';
 }
 
-// Only touch the DOM when the rendered value actually changes, so each
-// field repaints at its real cadence (seconds per tick, dates per day…).
 function setText(el, value) {
   if (el.textContent !== value) el.textContent = value;
+}
+
+// live (fresh) on top, then anchors; dedup by URL; newest first; cap.
+function mergedItems() {
+  const byUrl = new Map();
+  for (const it of [...liveItems, ...ANCHORS]) {
+    if (!byUrl.has(it.url)) byUrl.set(it.url, it);
+  }
+  return [...byUrl.values()].sort((a, b) => b.ts - a.ts).slice(0, MAX_RAIL);
 }
 
 // ---- coverage rail -----------------------------------------
@@ -58,7 +67,8 @@ const railEl = document.querySelector('[data-coverage]');
 const noteEl = document.querySelector('[data-rail-note]');
 let relEls = [];
 
-function renderCoverage(items, isLive) {
+function renderCoverage() {
+  const items = mergedItems();
   railEl.textContent = '';
   relEls = [];
 
@@ -79,7 +89,7 @@ function renderCoverage(items, isLive) {
 
     const rel = document.createElement('span');
     rel.className = 'item__rel';
-    rel._when = itemTime(item);   // stash the timestamp for live updates
+    rel._when = item.ts;
     relEls.push(rel);
 
     meta.append(outlet, rel);
@@ -95,9 +105,9 @@ function renderCoverage(items, isLive) {
   updateRelDates(Date.now());
 
   if (noteEl) {
-    setText(noteEl, isLive
+    setText(noteEl, liveItems.length
       ? 'Live — auto-updates as new coverage lands.'
-      : "Live feed isn't reachable — showing a curated list.");
+      : 'Showing curated coverage; live feed updating.');
   }
 }
 
@@ -108,7 +118,7 @@ function updateRelDates(now) {
 async function fetchNews() {
   try {
     const res = await fetch(NEWS_ENDPOINT, { headers: { accept: 'application/json' } });
-    if (!res.ok) return;                       // keep whatever is shown (curated)
+    if (!res.ok) return;                       // keep anchors in place
     const data = await res.json();
     const items = (data.items || [])
       .filter((a) => a && a.url && a.headline)
@@ -117,11 +127,13 @@ async function fetchNews() {
         headline: a.headline,
         url: a.url,
         ts: a.date ? Date.parse(a.date) : Date.now(),
-      }))
-      .sort((a, b) => b.ts - a.ts);            // newest first
-    if (items.length) renderCoverage(items, true);
+      }));
+    if (items.length) {
+      liveItems = items;
+      renderCoverage();
+    }
   } catch (_) {
-    // network/parse failure → leave the curated list in place
+    // network/parse failure → leave anchors in place
   }
 }
 
@@ -157,9 +169,9 @@ function tick() {
 document.documentElement.dataset.status = STATUS;
 document.body.dataset.status = STATUS;
 
-renderCoverage(CURATED, false);    // instant + never-empty
-fetchNews();                       // upgrade to live coverage
-setInterval(fetchNews, POLL_MS);   // and keep it fresh
+renderCoverage();                  // anchors render instantly
+fetchNews();                       // merge in fresh live coverage
+setInterval(fetchNews, POLL_MS);
 
 if (STATUS === 'down') {
   tick();
