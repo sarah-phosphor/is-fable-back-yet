@@ -8,9 +8,9 @@
    └─────────────────────────────────────────────────────────┘ */
 const STATUS = 'down';   // 'down' | 'up'
 
-// ---- Fable's brief life (US Eastern) -----------------------
-const LAUNCH      = new Date('2026-06-09T00:00:00-04:00').getTime();
-const DOWN_SINCE  = new Date('2026-06-12T17:21:00-04:00').getTime();
+// ---- Fable's brief life ------------------------------------
+const LAUNCH      = new Date('2026-06-09T00:00:00-04:00').getTime();   // midnight ET, Jun 9
+const DOWN_SINCE  = new Date('2026-06-12T17:50:44-07:00').getTime();   // 5:50:44 PM PT, Jun 12
 const LIFESPAN_MS = DOWN_SINCE - LAUNCH;   // ~3 days online
 
 // ---- Coverage: live feed + hand-picked anchors -------------
@@ -39,14 +39,16 @@ let liveItems = [];
 const pad = (n) => String(n).padStart(2, '0');
 
 function relFromTime(t, now) {
-  // calendar-day difference (local), so a same-day article reads "today"
-  // all day instead of flipping to "yesterday" after ~12 hours.
-  const a = new Date(t), b = new Date(now);
-  const midnight = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const d = Math.round((midnight(b) - midnight(a)) / 86400000);
-  if (d <= 0) return 'today';
-  if (d === 1) return 'yesterday';
-  return d + ' days ago';
+  // elapsed-time label, so fresh coverage reads "3 hours ago" (freshness)
+  // instead of a flat "today" for the whole calendar day. Falls back to
+  // "yesterday" / "N days ago" once an item is more than a day old.
+  const mins = Math.floor((now - t) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins === 1 ? '1 minute ago' : mins + ' minutes ago';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs === 1 ? '1 hour ago' : hrs + ' hours ago';
+  const days = Math.floor(hrs / 24);
+  return days === 1 ? 'yesterday' : days + ' days ago';
 }
 
 function setText(el, value) {
@@ -161,7 +163,7 @@ function tick() {
   const multiple = elapsed / LIFESPAN_MS;
   setText(quipEl, 'Down ' + multiple.toFixed(2) + '× longer — and counting');
 
-  // relative dates on coverage — only change about once a day
+  // relative dates on coverage — now tick by the minute/hour for fresh items
   updateRelDates(now);
 }
 
