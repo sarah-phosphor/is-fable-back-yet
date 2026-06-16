@@ -31,6 +31,16 @@ const NEWS_ENDPOINT = '/api/news';
 const POLL_MS = 10 * 60 * 1000;   // re-check the feed every 10 minutes
 const MAX_RAIL = 7;
 
+// Auto-flip: watch Anthropic's own status page (public Statuspage JSON — no key,
+// CORS-open) and flip to "up" only when the Fable suspension is marked resolved.
+const STATUS_JSON = 'https://status.claude.com/api/v2/incidents.json';
+const STATUS_INCIDENT_ID = 's9w82lp9dcn9';   // "We've suspended access to Claude Mythos 5 and Claude Fable 5"
+const STATUS_POLL_MS = 60 * 1000;            // re-check every 60s
+
+// Status-reactive favicon: red "N" (down) → green "Y" (up).
+const FAVICON_DOWN = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='1.5' y='1.5' width='29' height='29' rx='6' fill='%23ff3b30' stroke='%2316161a' stroke-width='2'/%3E%3Ctext x='16' y='22.5' text-anchor='middle' font-family='monospace' font-weight='700' font-size='19' fill='%23ffffff'%3EN%3C/text%3E%3C/svg%3E";
+const FAVICON_UP = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='1.5' y='1.5' width='29' height='29' rx='6' fill='%231f9d57' stroke='%2316161a' stroke-width='2'/%3E%3Ctext x='16' y='22.5' text-anchor='middle' font-family='monospace' font-weight='700' font-size='19' fill='%23ffffff'%3EY%3C/text%3E%3C/svg%3E";
+
 // curated anchors, normalized to { outlet, headline, url, ts }
 const ANCHORS = CURATED.map((c) => ({ outlet: c.outlet, headline: c.headline, url: c.url, ts: Date.parse(c.iso) }));
 let liveItems = [];
@@ -66,7 +76,6 @@ function mergedItems() {
 
 // ---- coverage rail -----------------------------------------
 const railEl = document.querySelector('[data-coverage]');
-const noteEl = document.querySelector('[data-rail-note]');
 let relEls = [];
 
 function renderCoverage() {
@@ -105,12 +114,6 @@ function renderCoverage() {
   }
   railEl.append(frag);
   updateRelDates(Date.now());
-
-  if (noteEl) {
-    setText(noteEl, liveItems.length
-      ? 'Live — auto-updates as new coverage lands.'
-      : 'Showing curated coverage; live feed updating.');
-  }
 }
 
 function updateRelDates(now) {
@@ -159,25 +162,79 @@ function tick() {
   setText(clockEls.mins, pad(Math.floor((totalSec % 3600) / 60)));
   setText(clockEls.secs, pad(totalSec % 60));
 
-  // deadpan lifespan contrast — only ticks over about once an hour
+  // deadpan lifespan contrast — recomputed every tick; the 2-decimal ratio
+  // visibly ticks over about once an hour (it's a ratio of multi-day spans).
   const multiple = elapsed / LIFESPAN_MS;
-  setText(quipEl, 'Down ' + multiple.toFixed(2) + '× longer — and counting');
+  setText(quipEl, 'Down ' + multiple.toFixed(2) + '× longer — and counting.');
 
   // relative dates on coverage — now tick by the minute/hour for fresh items
   updateRelDates(now);
 }
 
+// ---- live status: flip when Anthropic marks the suspension resolved ----
+// Source: status.claude.com Statuspage JSON (public, no API key). Fail-safe —
+// flips to "up" ONLY when the suspension incident reads `resolved`; anything
+// else (still monitoring, incident absent, fetch/parse failure) stays "down".
+// The hardcoded STATUS switch still works as a manual override + fallback.
+let liveStatus = null;           // 'up' | 'down' | null (not yet checked)
+let clockTimer = null;
+
+function startClock() {
+  if (clockTimer) return;
+  tick();
+  clockTimer = setInterval(tick, 1000);
+}
+
+function stopClock() {
+  if (clockTimer) { clearInterval(clockTimer); clockTimer = null; }
+}
+
+function resolveStatus() {
+  if (STATUS === 'up') return 'up';      // manual override always wins
+  if (liveStatus === 'up') return 'up';  // Anthropic marked the suspension resolved
+  return 'down';                         // default until proven resolved
+}
+
+function applyStatus(s) {
+  document.documentElement.dataset.status = s;
+  document.body.dataset.status = s;
+  const icon = document.querySelector('link[rel="icon"]');
+  if (icon) icon.href = s === 'up' ? FAVICON_UP : FAVICON_DOWN;
+  if (s === 'up') {
+    stopClock();                 // the counter retires
+    updateRelDates(Date.now());
+  } else {
+    startClock();
+  }
+}
+
+// 'up' only when the specific suspension incident is marked resolved.
+function statusFromIncidents(incidents) {
+  const inc = incidents.find((i) => i.id === STATUS_INCIDENT_ID)
+           || incidents.find((i) => /\bfable\b/i.test(i.name || ''));
+  if (!inc) return 'down';
+  return inc.status === 'resolved' ? 'up' : 'down';
+}
+
+async function fetchFableStatus() {
+  try {
+    const res = await fetch(STATUS_JSON, { headers: { accept: 'application/json' } });
+    if (!res.ok) return;                          // fetch error → hold current
+    const data = await res.json();
+    if (!Array.isArray(data.incidents)) return;   // unexpected shape → hold
+    liveStatus = statusFromIncidents(data.incidents);
+    applyStatus(resolveStatus());
+  } catch (_) {
+    // network / parse failure → hold current state
+  }
+}
+
 // ---- boot --------------------------------------------------
-document.documentElement.dataset.status = STATUS;
-document.body.dataset.status = STATUS;
+applyStatus(resolveStatus());      // initial paint (manual switch / down)
 
 renderCoverage();                  // anchors render instantly
 fetchNews();                       // merge in fresh live coverage
 setInterval(fetchNews, POLL_MS);
 
-if (STATUS === 'down') {
-  tick();
-  setInterval(tick, 1000);
-} else {
-  updateRelDates(Date.now());      // counter retires; dates still resolve
-}
+fetchFableStatus();                // check Anthropic's status page…
+setInterval(fetchFableStatus, STATUS_POLL_MS);   // …and keep checking
