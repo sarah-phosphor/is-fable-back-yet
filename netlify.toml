@@ -1,0 +1,11 @@
+# Is Fable Back Yet? — static site + one serverless function.
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+[build.environment]
+  # Node 20 gives the function global fetch() and the v2 functions API.
+  NODE_VERSION = "20"
+
+# The function routes itself to /api/news via `export const config`
+# in netlify/functions/news.mjs, so no redirect rule is needed here.

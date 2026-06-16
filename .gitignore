@@ -1,0 +1,9 @@
+# local env (holds GNEWS_API_KEY for `netlify dev`) — never commit
+.env
+.env.*
+
+# netlify
+.netlify/
+
+# node
+node_modules/

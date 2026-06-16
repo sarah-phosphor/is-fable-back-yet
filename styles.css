@@ -1,0 +1,321 @@
+/* ============================================================
+   Is Fable Back Yet? — single-serving status page
+   Monospace incident-status treatment. One flip (STATUS in
+   app.js) re-themes the whole page from red "No" to green "Yes".
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+}
+
+.page {
+  min-height: 100vh;
+  background: #faf9f5;
+  color: #16161a;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: clamp(22px, 4vw, 40px) clamp(20px, 4vw, 52px) clamp(28px, 4vw, 48px);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+/* ---------- top bar ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: clamp(28px, 5vw, 56px);
+}
+
+.site {
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: #56565e;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 6px 11px;
+  border-radius: 999px;
+}
+
+.pill__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.pill--down {
+  color: #b5302a;
+  border: 1px solid #e7c9c6;
+  background: #fbeeed;
+}
+.pill--down .pill__dot { background: #e5392f; }
+
+.pill--up {
+  color: #157a45;
+  border: 1px solid #bfe0cd;
+  background: #eef8f1;
+}
+.pill--up .pill__dot { background: #1f9d57; }
+
+/* ---------- two-column grid ---------- */
+.fable-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 0.85fr);
+  gap: clamp(40px, 5vw, 84px);
+  flex: 1;
+  align-items: start;
+}
+
+@media (max-width: 800px) {
+  .fable-grid {
+    grid-template-columns: 1fr;
+    gap: 44px;
+  }
+}
+
+/* ---------- main column ---------- */
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(26px, 3.4vw, 40px);
+}
+
+.headline {
+  /* negative margin compensates the monospace glyph's left side-bearing
+     so the ink lines up with the red box and body text below it */
+  margin: 0 0 0 -0.09em;
+  font-size: clamp(30px, 6vw, 76px);
+  line-height: 0.95;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #16161a;
+  white-space: nowrap;
+}
+
+.verdict {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(22px, 3vw, 34px);
+}
+
+.verdict-box {
+  align-self: flex-start;
+  border: 3px solid #16161a;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: clamp(40px, 8.5vw, 84px);
+  line-height: 1;
+  letter-spacing: 0.01em;
+  padding: 8px 22px 12px;
+}
+.verdict-box--down { background: #ff3b30; }
+.verdict-box--up { background: #1f9d57; }
+
+.epitaph {
+  margin: 0;
+  max-width: 46ch;
+  font-size: clamp(16px, 2.1vw, 22px);
+  line-height: 1.5;
+  color: #45454c;
+}
+.epitaph strong {
+  font-weight: 600;
+  color: #16161a;
+}
+
+/* ---------- live clock ---------- */
+.clock {
+  border: 1px solid #e4e4df;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: clamp(20px, 3vw, 30px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
+}
+
+.clock__label {
+  margin: 0 0 16px;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #56565e;
+}
+
+.clock__row {
+  display: flex;
+  align-items: flex-end;
+  gap: clamp(12px, 2.4vw, 26px);
+}
+
+.unit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.unit__num {
+  font-size: clamp(38px, 6.4vw, 64px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: #16161a;
+}
+.unit__num--sec { color: #e5392f; }
+
+.unit__label {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #9a9aa1;
+}
+
+.clock__colon {
+  font-size: clamp(30px, 5vw, 52px);
+  font-weight: 500;
+  line-height: 1;
+  color: #d2d2cc;
+  padding-bottom: 14px;
+}
+
+.clock__quip {
+  margin: 18px 0 0;
+  padding-top: 16px;
+  border-top: 1px dashed #e4e4df;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #6a6a71;
+}
+
+/* ---------- main footer note ---------- */
+.main-footer {
+  padding-top: clamp(8px, 1.5vw, 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fable-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #2c2c31;
+  font-weight: 500;
+  font-style: italic;
+}
+
+/* ---------- coverage rail ---------- */
+.rail {
+  display: flex;
+  flex-direction: column;
+}
+
+.rail__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 6px;
+}
+
+.rail__title {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #88888f;
+  font-weight: 500;
+}
+
+.rail__sub {
+  font-size: 11px;
+  color: #6a6a71;
+}
+
+.rail__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 0;
+  border-top: 1px solid #e4e4df;
+  text-decoration: none;
+  color: inherit;
+}
+.item:hover { background: #fbfbf9; }
+.item:focus-visible {
+  outline: 2px solid #16161a;
+  outline-offset: 2px;
+}
+
+.item__meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.item__outlet {
+  color: #6a6a71;
+  font-weight: 500;
+}
+.item__rel {
+  color: #6a6a71;
+  flex: none;
+}
+
+.item__headline {
+  font-size: 15px;
+  line-height: 1.34;
+  font-weight: 500;
+  color: #16161a;
+  text-wrap: pretty;
+}
+
+.rail__note {
+  margin: 18px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #6a6a71;
+}
+
+/* ---------- status flip: show one verdict / one pill ---------- */
+.v-up,
+.pill--up { display: none; }
+
+[data-status="up"] .v-down,
+[data-status="up"] .pill--down { display: none; }
+
+[data-status="up"] .v-up { display: flex; }
+[data-status="up"] .pill--up { display: inline-flex; }
+
+/* Nothing decorative animates, but honor the preference anyway. */
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
