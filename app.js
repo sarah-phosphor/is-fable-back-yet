@@ -31,9 +31,6 @@ const NEWS_ENDPOINT = '/api/news';
 const POLL_MS = 10 * 60 * 1000;   // re-check the feed every 10 minutes
 const MAX_RAIL = 7;
 
-const STATUS_ENDPOINT = '/api/fable-status';
-const STATUS_POLL_MS = 60 * 1000;   // re-check whether Fable is back every 60s
-
 // curated anchors, normalized to { outlet, headline, url, ts }
 const ANCHORS = CURATED.map((c) => ({ outlet: c.outlet, headline: c.headline, url: c.url, ts: Date.parse(c.iso) }));
 let liveItems = [];
@@ -170,62 +167,17 @@ function tick() {
   updateRelDates(now);
 }
 
-// ---- live status: flip to "up" the moment Fable returns ----
-// resolveStatus() is fail-safe: it reports "up" only when we're
-// certain (manual override, or a confident 200 from the probe).
-// Anything ambiguous falls back to the hardcoded STATUS switch.
-let liveStatus = null;           // 'up' | 'down' | null (unknown / not yet checked)
-let clockTimer = null;
-
-function startClock() {
-  if (clockTimer) return;
-  tick();
-  clockTimer = setInterval(tick, 1000);
-}
-
-function stopClock() {
-  if (clockTimer) { clearInterval(clockTimer); clockTimer = null; }
-}
-
-function resolveStatus() {
-  if (STATUS === 'up') return 'up';         // manual override always wins
-  if (liveStatus === 'up') return 'up';     // probe confirmed Fable is back
-  if (liveStatus === 'down') return 'down'; // probe confirmed still down
-  return STATUS;                            // unknown → fall back to the switch
-}
-
-function applyStatus(s) {
-  document.documentElement.dataset.status = s;
-  document.body.dataset.status = s;
-  if (s === 'up') {
-    stopClock();                 // the counter retires
-    updateRelDates(Date.now());
-  } else {
-    startClock();
-  }
-}
-
-async function fetchStatus() {
-  try {
-    const res = await fetch(STATUS_ENDPOINT, { headers: { accept: 'application/json' } });
-    if (!res.ok) return;                       // unknown → hold current state
-    const data = await res.json();
-    if (data.status === 'up' || data.status === 'down') {
-      liveStatus = data.status;
-      applyStatus(resolveStatus());
-    }
-    // data.status null → unknown → leave the page as-is (never false-flip up)
-  } catch (_) {
-    // network/parse failure → hold current state
-  }
-}
-
 // ---- boot --------------------------------------------------
-applyStatus(resolveStatus());      // initial paint from the switch / fallback
+document.documentElement.dataset.status = STATUS;
+document.body.dataset.status = STATUS;
 
 renderCoverage();                  // anchors render instantly
 fetchNews();                       // merge in fresh live coverage
 setInterval(fetchNews, POLL_MS);
 
-fetchStatus();                     // check whether Fable is back…
-setInterval(fetchStatus, STATUS_POLL_MS);   // …and keep checking
+if (STATUS === 'down') {
+  tick();
+  setInterval(tick, 1000);
+} else {
+  updateRelDates(Date.now());      // counter retires; dates still resolve
+}
