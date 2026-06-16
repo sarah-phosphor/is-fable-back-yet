@@ -113,27 +113,54 @@ function json(body, { status = 200, maxAge = 0 } = {}) {
   });
 }
 
-export default async () => {
+async function fetchPages(token, search, pages) {
+  const articles = [];
+  let error = null;
+  for (let page = 1; page <= pages; page++) {
+    const url = `${API_ENDPOINT}?api_token=${encodeURIComponent(token)}`
+      + `&search=${encodeURIComponent(search)}`
+      + `&language=en&limit=3&page=${page}&sort=published_at`;
+    const res = await fetch(url, { headers: { 'User-Agent': 'comebackfable.com' } });
+    if (!res.ok) {
+      let body = '';
+      try { body = (await res.text()).slice(0, 300); } catch {}
+      error = `HTTP ${res.status} ${body}`.trim();
+      break;
+    }
+    const data = await res.json();
+    const batch = Array.isArray(data.data) ? data.data : [];
+    articles.push(...batch);
+    if (batch.length < 3) break;   // last page reached
+  }
+  return { articles, error };
+}
+
+export default async (req) => {
   const token = process.env.THENEWSAPI_TOKEN;
   if (!token) return json({ items: [], error: 'THENEWSAPI_TOKEN not set' });
 
+  let debug = false;
+  try { debug = new URL(req.url).searchParams.get('debug') === '1'; } catch {}
+
   try {
-    const collected = [];
-    for (let page = 1; page <= PAGES; page++) {
-      const url = `${API_ENDPOINT}?api_token=${encodeURIComponent(token)}`
-        + `&search=${encodeURIComponent(SEARCH)}`
-        + `&language=en&limit=3&page=${page}&sort=published_at`;
-      const res = await fetch(url, { headers: { 'User-Agent': 'comebackfable.com' } });
-      if (!res.ok) break;
-      const data = await res.json();
-      const batch = Array.isArray(data.data) ? data.data : [];
-      collected.push(...batch);
-      if (batch.length < 3) break;   // last page reached
+    const primary = await fetchPages(token, SEARCH, PAGES);
+    const items = shapeArticles(primary.articles);
+
+    // TEMP: ?debug=1 dumps raw articles so we can tune the filter, then remove.
+    if (debug) {
+      const broad = await fetchPages(token, 'Anthropic', 1);
+      const dump = (arr) => arr.map((a) => ({ title: a.title, source: a.source, published_at: a.published_at }));
+      return json({
+        configuredQuery: SEARCH,
+        primary: { count: primary.articles.length, error: primary.error, articles: dump(primary.articles) },
+        broadProbe: { query: 'Anthropic', count: broad.articles.length, error: broad.error, articles: dump(broad.articles) },
+        filteredCount: items.length,
+        items,
+      }, { maxAge: 0 });
     }
 
-    const items = shapeArticles(collected);
     return json(
-      { items, source: 'thenewsapi', fetchedAt: new Date().toISOString() },
+      { items, source: 'thenewsapi', fetchedAt: new Date().toISOString(), error: primary.error || undefined },
       { maxAge: items.length ? CACHE_SECONDS : 0 },   // don't cache an empty result
     );
   } catch (err) {
