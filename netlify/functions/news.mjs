@@ -20,10 +20,14 @@ const API_ENDPOINT = 'https://api.thenewsapi.com/v1/news/all';
 const SEARCH = '"Fable 5" | "Mythos 5" | "Claude Fable" | "Anthropic Fable"';
 const PAGES = 2;            // free tier returns 3/page; 2 pages ≈ 6 candidates
 const MAX_ITEMS = 8;
-const CACHE_SECONDS = 3600; // 60 min edge cache, applied to EVERY response incl.
-                            // the empty feed. Empty is the normal state; not
+const CACHE_SECONDS = 7200; // 2h edge cache, applied to EVERY response incl. the
+                            // empty/402 feed. Empty is the normal state; not
                             // caching it meant every visit/poll hit the API live.
-                            // Now ~24 refreshes/day × PAGES, regardless of traffic.
+                            // ~12 refreshes/day × PAGES regardless of traffic —
+                            // keeps us well under TheNewsAPI's 100/day free cap.
+const ERROR_CACHE_SECONDS = 300; // thrown-error responses get a short cache too,
+                                 // so an upstream blip can't bypass the cache and
+                                 // hammer the API on every visit during traffic.
 
 // HARD allowlist — only these outlets ever appear. domain → display name.
 const REPUTABLE = new Map([
@@ -173,7 +177,9 @@ export default async () => {
       { maxAge: CACHE_SECONDS },   // cache empty results too — uncached empties were the leak
     );
   } catch (err) {
-    return json({ items: [], error: String(err) });
+    // Short cache so a thrown upstream error (timeout/DNS/parse) can't be
+    // hammered into the API on every request while it persists.
+    return json({ items: [], error: String(err) }, { maxAge: ERROR_CACHE_SECONDS });
   }
 };
 
