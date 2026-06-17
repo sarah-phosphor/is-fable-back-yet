@@ -20,7 +20,10 @@ const API_ENDPOINT = 'https://api.thenewsapi.com/v1/news/all';
 const SEARCH = '"Fable 5" | "Mythos 5" | "Claude Fable" | "Anthropic Fable"';
 const PAGES = 2;            // free tier returns 3/page; 2 pages ≈ 6 candidates
 const MAX_ITEMS = 8;
-const CACHE_SECONDS = 3600; // 60 min edge cache → ~48 API calls/day
+const CACHE_SECONDS = 3600; // 60 min edge cache, applied to EVERY response incl.
+                            // the empty feed. Empty is the normal state; not
+                            // caching it meant every visit/poll hit the API live.
+                            // Now ~24 refreshes/day × PAGES, regardless of traffic.
 
 // HARD allowlist — only these outlets ever appear. domain → display name.
 const REPUTABLE = new Map([
@@ -166,7 +169,7 @@ export default async () => {
 
     return json(
       { items, source: 'thenewsapi', fetchedAt: new Date().toISOString(), error: primary.error || undefined },
-      { maxAge: items.length ? CACHE_SECONDS : 0 },
+      { maxAge: CACHE_SECONDS },   // cache empty results too — uncached empties were the leak
     );
   } catch (err) {
     return json({ items: [], error: String(err) });
