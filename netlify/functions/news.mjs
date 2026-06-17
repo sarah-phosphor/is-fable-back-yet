@@ -19,7 +19,7 @@
 const API_ENDPOINT = 'https://api.thenewsapi.com/v1/news/all';
 const SEARCH = '"Fable 5" | "Mythos 5" | "Claude Fable" | "Anthropic Fable"';
 const PAGES = 2;            // free tier returns 3/page; 2 pages ≈ 6 candidates
-const MAX_ITEMS = 7;
+const MAX_ITEMS = 8;
 const CACHE_SECONDS = 3600; // 60 min edge cache → ~48 API calls/day
 
 // HARD allowlist — only these outlets ever appear. domain → display name.
@@ -41,18 +41,24 @@ const REPUTABLE = new Map([
   ['cnbc.com', 'CNBC'],
   ['cnn.com', 'CNN'],
   ['nbcnews.com', 'NBC News'],
+  ['npr.org', 'NPR'],
+  ['theatlantic.com', 'The Atlantic'],
   ['vox.com', 'Vox'],
   ['axios.com', 'Axios'],
+  ['politico.com', 'Politico'],
+  ['thehill.com', 'The Hill'],
+  ['foreignpolicy.com', 'Foreign Policy'],
+  ['lawfaremedia.org', 'Lawfare'],
   ['semafor.com', 'Semafor'],
   ['theinformation.com', 'The Information'],
   ['techcrunch.com', 'TechCrunch'],
+  ['technologyreview.com', 'MIT Technology Review'],
+  ['404media.co', '404 Media'],
   ['engadget.com', 'Engadget'],
   ['venturebeat.com', 'VentureBeat'],
   ['zdnet.com', 'ZDNet'],
   ['theregister.com', 'The Register'],
-  ['tomshardware.com', "Tom's Hardware"],
   ['businessinsider.com', 'Business Insider'],
-  ['marktechpost.com', 'MarkTechPost'],
   ['theconversation.com', 'The Conversation'],
   ['techmeme.com', 'Techmeme'],
   ['fortune.com', 'Fortune'],

@@ -138,9 +138,8 @@ body {
   line-height: 1.5;
   color: #45454c;
 }
-.epitaph strong {
-  font-weight: 600;
-  color: #16161a;
+.epitaph .tuck-stop {
+  margin-left: -0.2em;
 }
 
 /* ---------- live clock ---------- */
@@ -307,6 +306,11 @@ body {
   font-weight: 500;
   color: #16161a;
   text-wrap: pretty;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
 }
 
 /* ---------- status flip: show one verdict / one pill ---------- */

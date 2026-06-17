@@ -29,7 +29,7 @@ const CURATED = [
 
 const NEWS_ENDPOINT = '/api/news';
 const POLL_MS = 10 * 60 * 1000;   // re-check the feed every 10 minutes
-const MAX_RAIL = 7;
+const MAX_RAIL = 8;
 
 // Auto-flip: watch Anthropic's own status page (public Statuspage JSON — no key,
 // CORS-open) and flip to "up" only when the Fable suspension is marked resolved.
