@@ -65,6 +65,7 @@ const REPUTABLE = new Map([
   ['theconversation.com', 'The Conversation'],
   ['techmeme.com', 'Techmeme'],
   ['fortune.com', 'Fortune'],
+  ['forbes.com', 'Forbes'],
   ['cnet.com', 'CNET'],
   ['anthropic.com', 'Anthropic'],
 ]);
