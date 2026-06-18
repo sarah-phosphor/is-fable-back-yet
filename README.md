@@ -18,21 +18,22 @@ Flip that one word when Fable returns. That's the whole site.
 
 ## Live coverage rail
 
-The Coverage rail **auto-updates** with the latest reporting, in real time. It's fed by a
-serverless function ([`netlify/functions/news.mjs`](netlify/functions/news.mjs)) that queries
-**[TheNewsAPI](https://www.thenewsapi.com)** server-side and serves a clean list at `/api/news`.
-The browser polls that endpoint every 10 minutes.
+The Coverage rail **auto-updates** with the latest reporting. It's fed by a serverless function
+([`netlify/functions/news.mjs`](netlify/functions/news.mjs)) that serves a clean list at `/api/news`,
+warmed hourly by a scheduled function ([`refresh-news.mjs`](netlify/functions/refresh-news.mjs)).
+The browser polls `/api/news` every 10 minutes.
 
-Why TheNewsAPI: its **free tier is real-time** (no delay), unlike GNews free (12-hour delay).
+Source: **[Google News RSS search](https://news.google.com/rss/search)** — free, keyless, no daily
+quota, and far broader coverage than a metered news API. Google indexes the whole web (~100
+candidates per query); the allowlist below does the quality control: broad in, strict out.
 
-Quality control lives in the function, not the API:
+Quality control lives in the function, not the source:
 
 - **Hard allowlist** — only reputable outlets (Reuters, Bloomberg, The Verge, CNBC, The Guardian,
-  Vox, Wired, NBC News, Al Jazeera, BBC, Anthropic, …) ever appear.
-- **Relevance gate** — judged on the headline **and the URL slug**, because a newsroom's slug tags
-  the topic even when the headline doesn't (Vox's "Trump just found the worst way to regulate AI"
-  lives at `/anthropic-fable-claude-ban-…`). Keep only if it names Fable/Mythos, or names Anthropic
-  plus an outage/fight word (offline, ban, restore, white house…).
+  Vox, Wired, NBC News, Al Jazeera, BBC, Anthropic, …) ever appear. The outlet is read from each
+  RSS item's `<source>` tag (the `<link>` is a `news.google.com` redirect).
+- **Relevance gate** — keep only if the headline names Fable/Mythos, or names Anthropic plus an
+  outage/fight word (offline, ban, restore, white house…).
 - **Dedup** — by URL and headline, killing rewrite-spam copies.
 
 The curated list in [`app.js`](app.js) (`CURATED`) is a set of **hand-picked anchors** — vetted
@@ -40,21 +41,18 @@ articles that always show (some are relevant by context, not keywords, so no fil
 to find them). The live feed merges fresh, filter-passing articles on top, newest first. The rail is
 never blank.
 
-The token stays server-side (never shipped to the browser), and the response is edge-cached for
-60 minutes, so TheNewsAPI is hit ~48×/day — well under the free 100/day cap.
+The hourly refresh stores the shaped feed in Netlify Blobs, so a page view is a cheap blob read
+rather than a live hit to Google News on every visit.
 
 ## Deploy (Netlify)
 
 1. **Create the site.** Push this folder to a git repo and "Add new site" in Netlify. No build
-   step — it's static + one function. `netlify.toml` already sets the publish dir, functions dir,
+   step — it's static + two functions. `netlify.toml` already sets the publish dir, functions dir,
    and Node version.
 
-2. **Get a token.** Sign up free at [thenewsapi.com](https://www.thenewsapi.com) and copy your
-   **API token** (free tier: real-time, 100 requests/day, 3 articles/request).
-
-3. **Set it in Netlify.** Site config → Environment variables → add
-   `THENEWSAPI_TOKEN = <your token>`. Redeploy. The rail goes live.
-   (Until the token is set, `/api/news` returns an empty list and the page shows the curated
+2. **Deploy.** That's it — the feed is keyless, so there's nothing to configure. Netlify picks up
+   the scheduled `refresh-news` function automatically and the rail goes live on first run.
+   (Before the first refresh, `/api/news` returns an empty list and the page shows the curated
    fallback. Nothing breaks.)
 
 ## Run it locally
@@ -65,12 +63,11 @@ Static-only (curated rail, no live feed) — quickest look:
 python3 -m http.server 4178      # → http://localhost:4178
 ```
 
-Full stack incl. the live `/api/news` function:
+Full stack incl. the live `/api/news` function (no token needed):
 
 ```sh
 npm i -g netlify-cli
-echo "THENEWSAPI_TOKEN=your_token_here" > .env   # gitignored
-netlify dev                                      # serves the site + function
+netlify dev                                      # serves the site + functions
 ```
 
 ## Notes
@@ -86,5 +83,7 @@ netlify dev                                      # serves the site + function
 - `index.html` — markup (both verdict states present; CSS shows one based on `data-status`)
 - `styles.css` — all styling
 - `app.js` — the `STATUS` switch, live counter, coverage fetch + curated fallback
-- `netlify/functions/news.mjs` — `/api/news`: TheNewsAPI fetch, allowlist, relevance, caching
+- `netlify/lib/newsapi.mjs` — Google News RSS fetch + parse, allowlist, relevance, shaping
+- `netlify/functions/news.mjs` — `/api/news`: serves the shaped feed from Netlify Blobs
+- `netlify/functions/refresh-news.mjs` — hourly scheduled blob warmer
 - `netlify.toml` — publish dir, functions dir, Node version

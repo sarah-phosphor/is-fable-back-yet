@@ -1,4 +1,4 @@
-# local env (holds GNEWS_API_KEY for `netlify dev`) — never commit
+# local env (the news feed is keyless now, but keep envs out of git anyway)
 .env
 .env.*
 
@@ -7,3 +7,6 @@
 
 # node
 node_modules/
+
+# handoff notes (kept local / off the public repo by default)
+HANDOFF.md

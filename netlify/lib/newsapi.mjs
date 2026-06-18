@@ -1,24 +1,27 @@
 /* ============================================================
-   Shared TheNewsAPI logic for Is Fable Back Yet?
+   Shared coverage-feed logic for Is Fable Back Yet?
 
-   Pulls + shapes the "Coverage" feed. Imported by:
+   Source: Google News RSS search (free, no API key, no daily quota).
+   Imported by:
      • functions/refresh-news.mjs — scheduled, writes the result to Blobs.
      • functions/news.mjs        — serves it (cold-start fallback only).
 
-   Token (THENEWSAPI_TOKEN) is read from env, never shipped to the browser.
+   Google News returns ~100 candidates per query across the whole web, so
+   the hard allowlist below does the quality control: broad in, strict out.
 
-   Relevance is judged on the headline AND the URL slug — because a
-   newsroom's slug tags the topic even when the headline doesn't
-   (e.g. Vox's "Trump just found the worst way to regulate AI" lives
-   at /anthropic-fable-claude-ban-...). An article is kept only if:
-     • a reputable outlet (hard allowlist), AND
-     • title-or-slug names Fable/Mythos, OR names Anthropic + an
+   Each RSS <item> carries a <source url="…">Outlet</source> tag, so the
+   outlet is read from that publisher host (the <link> itself is a
+   news.google.com redirect and carries no publisher domain/slug).
+
+   An article is kept only if:
+     • a reputable outlet (hard allowlist on the <source> host), AND
+     • the headline names Fable/Mythos, OR names Anthropic + an
        outage/fight word (offline, ban, restore, white house, …).
    ============================================================ */
 
-const API_ENDPOINT = 'https://api.thenewsapi.com/v1/news/all';
-const SEARCH = '"Fable 5" | "Mythos 5" | "Claude Fable" | "Anthropic Fable"';
-const PAGES = 2;            // free tier returns 3/page; 2 pages ≈ 6 candidates
+const GNEWS_RSS = 'https://news.google.com/rss/search';
+const SEARCH = '"Fable 5" OR "Mythos 5" OR "Claude Fable" OR "Claude Mythos"'
+  + ' OR "Anthropic Fable" OR (Anthropic Mythos)';
 const MAX_ITEMS = 8;
 
 // HARD allowlist — only these outlets ever appear. domain → display name.
@@ -75,19 +78,23 @@ function domainOf(source) {
   return String(source || '').toLowerCase().replace(/^www\./, '').trim();
 }
 
-// Resolve the outlet from the article's actual URL host first, falling back to
-// the API-reported `source`. TheNewsAPI sometimes labels `source` as a media-
-// monitoring aggregator (e.g. app.buzzsumo.com) while the URL is the real
-// publisher (wired.com) — keying on `source` alone drops allowlisted stories.
+// Resolve the outlet from the publisher host. For Google News items the
+// <link> is a news.google.com redirect, so `a.source` (the publisher host
+// from the RSS <source> tag, e.g. wired.com) is what matches the allowlist;
+// the URL-host check is a fallback for any item that links direct.
 function outletOf(a) {
   let host = '';
   try { host = domainOf(new URL(a.url).hostname); } catch { /* bad url */ }
-  return REPUTABLE.get(host) || REPUTABLE.get(domainOf(a.source));
+  return REPUTABLE.get(domainOf(a.source)) || REPUTABLE.get(host);
 }
 
 function slugText(url) {
   try {
-    return decodeURIComponent(new URL(url).pathname).replace(/[^a-z0-9]+/gi, ' ').toLowerCase();
+    const u = new URL(url);
+    // Google News links are opaque redirects (no publisher slug) — relevance
+    // for those rides on the headline alone, so don't mine the base64 path.
+    if (/(^|\.)google\.com$/.test(domainOf(u.hostname))) return '';
+    return decodeURIComponent(u.pathname).replace(/[^a-z0-9]+/gi, ' ').toLowerCase();
   } catch {
     return '';
   }
@@ -109,7 +116,7 @@ function classify(a) {
   return { kept: true, reason: outlet };
 }
 
-/** Shape raw TheNewsAPI articles → rail items. Pure + exported for tests. */
+/** Shape parsed feed articles → rail items. Pure + exported for tests. */
 export function shapeArticles(articles) {
   const seen = new Set();
   const out = [];
@@ -128,39 +135,79 @@ export function shapeArticles(articles) {
   return out.slice(0, MAX_ITEMS);
 }
 
-async function fetchPages(token, search, pages) {
-  const articles = [];
-  let error = null;
-  for (let page = 1; page <= pages; page++) {
-    const url = `${API_ENDPOINT}?api_token=${encodeURIComponent(token)}`
-      + `&search=${encodeURIComponent(search)}`
-      + `&language=en&limit=3&page=${page}&sort=published_at`;
-    const res = await fetch(url, { headers: { 'User-Agent': 'comebackfable.com' } });
+// --- Google News RSS parsing -------------------------------------------------
+
+const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", '#39': "'", '#34': '"' };
+function decodeEntities(s) {
+  return String(s || '')
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (m, e) => {
+      if (e[0] === '#') {
+        const code = e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+        return Number.isFinite(code) ? String.fromCodePoint(code) : m;
+      }
+      return Object.prototype.hasOwnProperty.call(ENTITIES, e.toLowerCase()) ? ENTITIES[e.toLowerCase()] : m;
+    });
+}
+
+const tag = (block, name) => {
+  const m = block.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`, 'i'));
+  return m ? decodeEntities(m[1]).trim() : '';
+};
+
+/** Parse Google News RSS XML → article objects shaped like the rest of the pipeline. */
+export function parseRss(xml) {
+  const out = [];
+  const blocks = String(xml || '').split(/<item>/i).slice(1);
+  for (const raw of blocks) {
+    const block = raw.split(/<\/item>/i)[0];
+    const rawTitle = tag(block, 'title');
+    const link = tag(block, 'link');
+    const pubDate = tag(block, 'pubDate');
+    const srcM = block.match(/<source\b[^>]*\burl="([^"]*)"[^>]*>([\s\S]*?)<\/source>/i);
+    const srcUrl = srcM ? srcM[1] : '';
+    const srcName = srcM ? decodeEntities(srcM[2]).trim() : '';
+    // Google appends " - Outlet" to every headline; strip it for a clean title.
+    const title = srcName && rawTitle.endsWith(` - ${srcName}`)
+      ? rawTitle.slice(0, -(srcName.length + 3)).trim()
+      : rawTitle.replace(/\s+-\s+[^-]+$/, '').trim();
+    let source = '';
+    try { source = domainOf(new URL(srcUrl).hostname); } catch { /* no source url */ }
+    let published_at = null;
+    if (pubDate) { const d = new Date(pubDate); if (!isNaN(d)) published_at = d.toISOString(); }
+    if (link && title) out.push({ title, url: link, source, published_at });
+  }
+  return out;
+}
+
+function rssUrl(search) {
+  const qs = new URLSearchParams({ q: search, hl: 'en-US', gl: 'US', ceid: 'US:en' });
+  return `${GNEWS_RSS}?${qs.toString()}`;
+}
+
+async function fetchFeed(search) {
+  try {
+    const res = await fetch(rssUrl(search), { headers: { 'User-Agent': 'comebackfable.com (+https://comebackfable.com)' } });
     if (!res.ok) {
       let body = '';
-      try { body = (await res.text()).slice(0, 300); } catch {}
-      error = `HTTP ${res.status} ${body}`.trim();
-      break;
+      try { body = (await res.text()).slice(0, 200); } catch {}
+      return { articles: [], error: `HTTP ${res.status} ${body}`.trim() };
     }
-    const data = await res.json();
-    const batch = Array.isArray(data.data) ? data.data : [];
-    articles.push(...batch);
-    if (batch.length < 3) break;   // last page reached
+    return { articles: parseRss(await res.text()), error: null };
+  } catch (err) {
+    return { articles: [], error: String(err) };
   }
-  return { articles, error };
 }
 
 /**
- * Pull + shape the current coverage feed. This is the ONLY place that spends
- * TheNewsAPI quota — it runs from the scheduled refresh (~12×/day), and once
+ * Pull + shape the current coverage feed from Google News RSS. Free + keyless,
+ * so there is no quota to budget — it runs from the scheduled refresh and once
  * as a cold-start fallback. Returns { items, fetchedAt, error? }; never throws.
  */
 export async function pullAndShape() {
   const fetchedAt = new Date().toISOString();
-  const token = process.env.THENEWSAPI_TOKEN;
-  if (!token) return { items: [], fetchedAt, error: 'THENEWSAPI_TOKEN not set' };
   try {
-    const { articles, error } = await fetchPages(token, SEARCH, PAGES);
+    const { articles, error } = await fetchFeed(SEARCH);
     return { items: shapeArticles(articles), fetchedAt, error: error || undefined };
   } catch (err) {
     return { items: [], fetchedAt, error: String(err) };

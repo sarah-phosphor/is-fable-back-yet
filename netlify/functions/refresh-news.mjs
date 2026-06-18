@@ -1,16 +1,13 @@
 /* ============================================================
    refresh-news — scheduled cache warmer for the Coverage feed.
 
-   Runs on a cron (every 2h at :05, so the 00:05 run lands just after
-   TheNewsAPI's 00:00 UTC daily-quota reset). It is the ONLY thing that
-   spends API quota: ~12 runs/day × ≤2 calls = ≤24/day, well under the
-   100/day free cap — and completely decoupled from visitor traffic.
+   Runs hourly at :05 and stores the shaped feed in Netlify Blobs. The
+   source is Google News RSS (free, keyless, no quota), so the only reason
+   to schedule rather than pull per-request is to keep /api/news instant
+   and decoupled from Google's feed availability.
 
-   It pulls the feed and stores the result in Netlify Blobs. /api/news
-   then serves straight from Blobs (0 API calls per visit).
-
-   On a failed pull (e.g. 402 over-quota) it KEEPS the last good data
-   rather than overwriting it with an empty feed.
+   On a failed pull (network blip / non-200 from Google) it KEEPS the last
+   good data rather than overwriting it with an empty feed.
    ============================================================ */
 
 import { getStore } from '@netlify/blobs';
@@ -33,5 +30,5 @@ export default async () => {
   });
 };
 
-// Every 2 hours at :05 UTC (00:05, 02:05, … 22:05).
-export const config = { schedule: '5 */2 * * *' };
+// Hourly at :05 UTC.
+export const config = { schedule: '5 * * * *' };

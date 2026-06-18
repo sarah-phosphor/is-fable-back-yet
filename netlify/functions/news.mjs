@@ -2,16 +2,14 @@
    /api/news — "Coverage" feed for Is Fable Back Yet?
 
    Serves the feed that the scheduled `refresh-news` function pulled and
-   stored in Netlify Blobs. Reading a blob costs ZERO TheNewsAPI quota, so
-   visitor traffic no longer hits the API at all — only the cron does
-   (~12×/day, ≤24 calls, far under the 100/day free cap).
+   stored in Netlify Blobs, so a page view is a cheap blob read rather than
+   a live hit to Google News on every visit.
 
    Cold-start fallback: if the blob is empty (e.g. the very first request
    after a fresh deploy, before the first scheduled run), we do ONE live
-   pull, persist it, and serve it. Once the blob exists, visitors never
-   trigger a live pull again — even if the scheduler later stalls, we serve
-   last-good data (with `fetchedAt` so staleness is visible) rather than
-   burning quota.
+   pull, persist it, and serve it. Once the blob exists, visitors serve from
+   the blob — even if the scheduler later stalls, we serve last-good data
+   (with `fetchedAt` so staleness is visible).
 
    Always 200 with { items: [...] }; [] on any failure so the client falls
    back to its curated anchors and the rail is never empty.

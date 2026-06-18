@@ -65,13 +65,20 @@ function setText(el, value) {
   if (el.textContent !== value) el.textContent = value;
 }
 
-// live (fresh) on top, then anchors; dedup by URL; newest first; cap.
+// live (fresh) on top, then anchors; dedup by URL and by headline (live items
+// use news.google.com redirect URLs, so a curated anchor for the same story
+// won't share a URL — fall back to a normalized-headline key); newest first; cap.
 function mergedItems() {
-  const byUrl = new Map();
+  const out = [];
+  const seen = new Set();
   for (const it of [...liveItems, ...ANCHORS]) {
-    if (!byUrl.has(it.url)) byUrl.set(it.url, it);
+    const headKey = 'h:' + String(it.headline || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (seen.has(it.url) || seen.has(headKey)) continue;
+    seen.add(it.url);
+    seen.add(headKey);
+    out.push(it);
   }
-  return [...byUrl.values()].sort((a, b) => b.ts - a.ts).slice(0, MAX_RAIL);
+  return out.sort((a, b) => b.ts - a.ts).slice(0, MAX_RAIL);
 }
 
 // ---- coverage rail -----------------------------------------
