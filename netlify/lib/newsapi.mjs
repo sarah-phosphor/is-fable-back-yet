@@ -75,6 +75,16 @@ function domainOf(source) {
   return String(source || '').toLowerCase().replace(/^www\./, '').trim();
 }
 
+// Resolve the outlet from the article's actual URL host first, falling back to
+// the API-reported `source`. TheNewsAPI sometimes labels `source` as a media-
+// monitoring aggregator (e.g. app.buzzsumo.com) while the URL is the real
+// publisher (wired.com) — keying on `source` alone drops allowlisted stories.
+function outletOf(a) {
+  let host = '';
+  try { host = domainOf(new URL(a.url).hostname); } catch { /* bad url */ }
+  return REPUTABLE.get(host) || REPUTABLE.get(domainOf(a.source));
+}
+
 function slugText(url) {
   try {
     return decodeURIComponent(new URL(url).pathname).replace(/[^a-z0-9]+/gi, ' ').toLowerCase();
@@ -93,7 +103,7 @@ function isRelevant(title, url) {
 // Single source of truth for keep/drop, with a reason (used by ?debug=1).
 function classify(a) {
   if (!a || !a.url || !a.title) return { kept: false, reason: 'missing title/url' };
-  const outlet = REPUTABLE.get(domainOf(a.source));
+  const outlet = outletOf(a);
   if (!outlet) return { kept: false, reason: `outlet not allowlisted (${a.source})` };
   if (!isRelevant(a.title, a.url)) return { kept: false, reason: 'not about the Fable event' };
   return { kept: true, reason: outlet };
