@@ -43,6 +43,8 @@ export const REPUTABLE = new Map([
   ['cnbc.com', 'CNBC'],
   ['cnn.com', 'CNN'],
   ['nbcnews.com', 'NBC News'],
+  ['nypost.com', 'New York Post'],
+  ['csmonitor.com', 'The Christian Science Monitor'],
   ['npr.org', 'NPR'],
   ['theatlantic.com', 'The Atlantic'],
   ['vox.com', 'Vox'],
@@ -72,7 +74,12 @@ export const REPUTABLE = new Map([
 // Relevance signals, tested against "title + url-slug".
 const FABLE = /\b(fable|mythos)\b/i;
 const ANTHROPIC = /\banthropic\b/i;
-const EVENT = /\b(offline|disabl|restor|reinstat|ban|banned|shut[\s-]?down|export|pull|pulled|suspend|outage|halt|revoke|licen[sc]e|white\s?house|trump|directive|grounded?|block)\b/i;
+// Stems use \w* so inflected forms match ("disabl\w*" → disabled/disables/
+// disabling); short words that could collide with unrelated terms (ban, block,
+// pull) spell out their endings instead. The whole thing only fires alongside
+// ANTHROPIC, so the political-fight vocabulary (white house, trump, lutnick,
+// lawmakers, administration, government, regulation) is safe to include.
+const EVENT = /\b(?:offline|disabl\w*|restor\w*|restrict\w*|reinstat\w*|ban(?:ned|ning|s)?|shut[\s-]?downs?|export\w*|control\w*|curb\w*|pull(?:ed|ing|s)?|suspend\w*|outage|halt\w*|revoke\w*|revoc\w*|licen[sc]\w*|limit\w*|white\s?house|trump|lutnick|lawmaker\w*|administration|government\w*|regulat\w*|commerce|directive\w*|grounded?|block(?:ed|ing|s)?)\b/i;
 
 function domainOf(source) {
   return String(source || '').toLowerCase().replace(/^www\./, '').trim();
