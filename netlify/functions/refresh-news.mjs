@@ -17,13 +17,24 @@ export default async () => {
   const { items, fetchedAt, error } = await pullAndShape();
   const store = getStore(BLOB_STORE);
 
-  // Only overwrite stored data on a clean pull. A clean pull with 0 items is
-  // valid (no current coverage); an errored pull is not — keep last good.
-  if (!error) {
+  // Never replace good stored data with an empty feed. We write only when the
+  // pull returned items; an empty/errored pull (network blip, or Google's
+  // datacenter consent/throttle page — which 200s with no <item>s) keeps the
+  // last-good blob. The one exception: if nothing is stored yet, seed whatever
+  // we have so the cold-start path has something to serve.
+  let wrote = false;
+  if (!error && items.length) {
     await store.setJSON(BLOB_KEY, { items, fetchedAt });
+    wrote = true;
+  } else {
+    const existing = await store.get(BLOB_KEY, { type: 'json' });
+    if (!existing) {
+      await store.setJSON(BLOB_KEY, { items, fetchedAt });
+      wrote = true;
+    }
   }
 
-  const summary = { ok: !error, count: items.length, fetchedAt, error: error || undefined, wrote: !error };
+  const summary = { ok: !error, count: items.length, fetchedAt, error: error || undefined, wrote };
   console.log('refresh-news', JSON.stringify(summary));
   return new Response(JSON.stringify(summary), {
     headers: { 'content-type': 'application/json; charset=utf-8' },

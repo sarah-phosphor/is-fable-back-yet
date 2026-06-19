@@ -215,7 +215,15 @@ export async function pullAndShape() {
   const fetchedAt = new Date().toISOString();
   try {
     const { articles, error } = await fetchFeed(SEARCH);
-    return { items: shapeArticles(articles), fetchedAt, error: error || undefined };
+    // A 200 that parses to ZERO articles is not "no coverage" — it's an
+    // unusable feed (Google hands datacenter IPs a consent/throttle page with
+    // no <item>s). Treat it as a soft error so callers keep last-good data
+    // instead of clobbering the blob with an empty rail. A feed that parsed
+    // real articles but filtered down to 0 is a genuine no-match and is fine.
+    const softError = !error && articles.length === 0
+      ? 'empty feed: 0 articles parsed (likely upstream block/consent page)'
+      : error;
+    return { items: shapeArticles(articles), fetchedAt, error: softError || undefined };
   } catch (err) {
     return { items: [], fetchedAt, error: String(err) };
   }

@@ -40,18 +40,22 @@ function json(body, { status = 200, maxAge = 0 } = {}) {
 export default async () => {
   try {
     const store = getStore(BLOB_STORE);
-    let data = await store.get(BLOB_KEY, { type: 'json' });
+    const data = await store.get(BLOB_KEY, { type: 'json' });
+    const storedEmpty = !data || !Array.isArray(data.items) || data.items.length === 0;
 
-    if (!data) {
-      // Cold start: no scheduled run has populated the blob yet. Pull once,
-      // persist, serve. This is the only visitor-triggered API spend, and it
-      // happens at most once per fresh deploy.
+    if (storedEmpty) {
+      // Cold start (nothing stored yet) OR a previously-stored empty rail. In
+      // either case try one live pull to (re)populate, so an empty blob heals
+      // on the next visit instead of staying stuck until the next cron run.
+      // Source is free RSS (no quota); the response is edge-cached so this
+      // can't hammer upstream. Only persist a pull that actually has items.
       const { items, fetchedAt, error } = await pullAndShape();
-      data = { items, fetchedAt };
-      if (!error) {
-        try { await store.setJSON(BLOB_KEY, data); } catch { /* best-effort */ }
+      const fresh = { items, fetchedAt };
+      if (!error && items.length) {
+        try { await store.setJSON(BLOB_KEY, fresh); } catch { /* best-effort */ }
       }
-      return json({ ...data, source: 'blob-coldstart', error: error || undefined }, { maxAge: CACHE_SECONDS });
+      const source = data ? 'blob-empty-repull' : 'blob-coldstart';
+      return json({ ...fresh, source, error: error || undefined }, { maxAge: CACHE_SECONDS });
     }
 
     return json({ ...data, source: 'blob' }, { maxAge: CACHE_SECONDS });
