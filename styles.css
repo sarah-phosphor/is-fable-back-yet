@@ -225,10 +225,9 @@ body {
   color: #56565e;
 }
 
-/* main line — deadpan sentence with the prominent multiple */
+/* main line — deadpan sentence with the prominent multiple, kept to one line */
 .ratio-line {
   margin: 0;
-  max-width: 30ch;
   font-size: 15px;
   line-height: 1.5;
   color: #45454c;
