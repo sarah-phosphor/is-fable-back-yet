@@ -205,6 +205,88 @@ body {
   color: #6a6a71;
 }
 
+/* ---------- live vs off — compact ratio card below the clock ---------- */
+.lifespan-chart {
+  border: 1px solid #e4e4df;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: clamp(18px, 2.6vw, 24px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chart__label {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #56565e;
+}
+
+/* main line — deadpan sentence with the prominent multiple */
+.ratio-line {
+  margin: 0;
+  max-width: 30ch;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #45454c;
+}
+.ratio-mult {
+  font-weight: 700;
+  font-size: 1.15em;
+  color: #16161a;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* one continuous squared-off stacked bar: black (live) | red (off) */
+.ratio-bar {
+  display: flex;
+  height: 16px;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+.ratio-bar__seg {
+  height: 100%;
+  transition: width 0.6s ease;
+}
+.ratio-bar__seg--live { background: #16161a; }
+.ratio-bar__seg--off  { background: #e5392f; }
+
+/* swatch legend — live + off durations (minute-level; the exact sec clock is above) */
+.ratio-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 2px;
+}
+.ratio-legend__row {
+  display: grid;
+  grid-template-columns: 11px 3.2em auto;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+.ratio-legend__swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+}
+.ratio-legend__swatch--live { background: #16161a; }
+.ratio-legend__swatch--off  { background: #e5392f; }
+.ratio-legend__label {
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #9a9aa1;
+}
+.ratio-legend__val {
+  font-variant-numeric: tabular-nums;
+  color: #45454c;
+}
+
 /* ---------- footer notes ---------- */
 .fable-note {
   margin: 0 0 10px;
@@ -353,6 +435,8 @@ body {
   .clock__label { margin-bottom: 10px; }
   .unit__num { font-size: clamp(34px, 5vw, 52px); }
   .clock__quip { margin-top: 12px; padding-top: 12px; }
+  .lifespan-chart { padding: clamp(16px, 2vh, 22px); gap: 11px; }
+  .chart__label { margin-bottom: 2px; }
 
   .item { padding: 10px 0; }
 

@@ -9,7 +9,7 @@
 const STATUS = 'down';   // 'down' | 'up'
 
 // ---- Fable's brief life ------------------------------------
-const LAUNCH      = new Date('2026-06-09T00:00:00-04:00').getTime();   // midnight ET, Jun 9
+const LAUNCH      = new Date('2026-06-09T10:00:00-07:00').getTime();   // 10:00 AM PT, Jun 9
 const DOWN_SINCE  = new Date('2026-06-12T17:50:44-07:00').getTime();   // 5:50:44 PM PT, Jun 12
 const LIFESPAN_MS = DOWN_SINCE - LAUNCH;   // ~3 days online
 
@@ -162,6 +162,33 @@ const clockEls = {
 };
 const quipEl = document.querySelector('[data-quip]');
 
+// ---- lifespan bar chart: Live (fixed launch→grounded) vs Off (growing) ----
+const barEls = {
+  live:    document.querySelector('[data-bar="live"]'),
+  off:     document.querySelector('[data-bar="off"]'),
+  liveVal: document.querySelector('[data-bar-val="live"]'),
+};
+
+// compact "Xd Yh Zm" duration label (no seconds — the exact clock is the card above)
+function fmtDurShort(ms) {
+  let s = Math.floor(Math.max(0, ms) / 1000);
+  const d = Math.floor(s / 86400); s %= 86400;
+  const h = Math.floor(s / 3600);  s %= 3600;
+  const m = Math.floor(s / 60);
+  return d + 'd ' + h + 'h ' + m + 'm';
+}
+
+// One continuous stacked bar split by true proportion: black (live) on the left,
+// red (off) on the right. Off ÷ live ≈ the multiple shown, so red runs ~2× black.
+// Recomputed each tick as the off share grows.
+function renderChart(elapsed) {
+  if (!barEls.live) return;
+  const total = LIFESPAN_MS + elapsed || 1;
+  barEls.live.style.width = (LIFESPAN_MS / total * 100) + '%';
+  barEls.off.style.width  = (elapsed / total * 100) + '%';
+  setText(barEls.liveVal, fmtDurShort(LIFESPAN_MS));
+}
+
 function tick() {
   const now = Date.now();
 
@@ -176,7 +203,10 @@ function tick() {
   // deadpan lifespan contrast — recomputed every tick; the 2-decimal ratio
   // visibly ticks over about once an hour (it's a ratio of multi-day spans).
   const multiple = elapsed / LIFESPAN_MS;
-  setText(quipEl, 'Down ' + multiple.toFixed(2) + '× longer — and counting.');
+  setText(quipEl, multiple.toFixed(2) + '×');
+
+  // live-vs-off bar chart, grows with the clock
+  renderChart(elapsed);
 
   // relative dates on coverage — now tick by the minute/hour for fresh items
   updateRelDates(now);
@@ -242,6 +272,7 @@ async function fetchFableStatus() {
 
 // ---- boot --------------------------------------------------
 applyStatus(resolveStatus());      // initial paint (manual switch / down)
+renderChart(Math.max(0, Date.now() - DOWN_SINCE));   // paint bars even if 'up' (clock frozen)
 
 renderCoverage();                  // anchors render instantly
 fetchNews();                       // merge in fresh live coverage
